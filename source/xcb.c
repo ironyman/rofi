@@ -485,6 +485,7 @@ static int monitor_active_from_id ( int mon_id, workarea *mon )
 {
     xcb_window_t root = xcb->screen->root;
     int          x, y;
+    printf("monitor_active_from_id %d\n", mon_id);
     // At mouse position.
     if ( mon_id == -3 ) {
         if ( pointer_get ( root, &x, &y ) ) {
@@ -493,20 +494,26 @@ static int monitor_active_from_id ( int mon_id, workarea *mon )
             mon->y = y;
             return TRUE;
         }
+
     }
     // Focused monitor
     else if ( mon_id == -1 ) {
         // Get the current desktop.
         unsigned int              current_desktop = 0;
         xcb_get_property_cookie_t gcdc;
+        printf("screen_nbr %d\n", xcb->screen_nbr);
         gcdc = xcb_ewmh_get_current_desktop ( &xcb->ewmh, xcb->screen_nbr );
         if  ( xcb_ewmh_get_current_desktop_reply ( &xcb->ewmh, gcdc, &current_desktop, NULL ) ) {
+          printf("current_desktop %d\n", current_desktop);
             xcb_get_property_cookie_t             c = xcb_ewmh_get_desktop_viewport ( &xcb->ewmh, xcb->screen_nbr );
             xcb_ewmh_get_desktop_viewport_reply_t vp;
             if ( xcb_ewmh_get_desktop_viewport_reply ( &xcb->ewmh, c, &vp, NULL ) ) {
                 if ( current_desktop < vp.desktop_viewport_len ) {
+                  printf("vp %d %d\n", vp.desktop_viewport[current_desktop].x,
+                                         vp.desktop_viewport[current_desktop].y);
                     monitor_dimensions ( vp.desktop_viewport[current_desktop].x,
                                          vp.desktop_viewport[current_desktop].y, mon );
+                    printf("mon %d %d %d %d\n", mon->x, mon->y, mon->w, mon->h);
                     xcb_ewmh_get_desktop_viewport_reply_wipe ( &vp );
                     return TRUE;
                 }
@@ -528,13 +535,16 @@ static int monitor_active_from_id ( int mon_id, workarea *mon )
         xcb_get_property_cookie_t awc;
         awc = xcb_ewmh_get_active_window ( &xcb->ewmh, xcb->screen_nbr );
         if ( xcb_ewmh_get_active_window_reply ( &xcb->ewmh, awc, &active_window, NULL ) ) {
+            printf("active window %d\n", active_window);
             // get geometry.
             xcb_get_geometry_cookie_t c  = xcb_get_geometry ( xcb->connection, active_window );
             xcb_get_geometry_reply_t  *r = xcb_get_geometry_reply ( xcb->connection, c, NULL );
+            printf("active window geometry r %d %d\n", r->x, r->y);
             if ( r ) {
                 xcb_translate_coordinates_cookie_t ct = xcb_translate_coordinates ( xcb->connection, active_window, root, r->x, r->y );
                 xcb_translate_coordinates_reply_t  *t = xcb_translate_coordinates_reply ( xcb->connection, ct, NULL );
                 if ( t ) {
+                    printf("translated geometry t %d %d\n", t->dst_x, t->dst_y);
                     if ( mon_id == -2 ) {
                         // place the menu above the window
                         // if some window is focused, place menu above window, else fall
@@ -549,6 +559,7 @@ static int monitor_active_from_id ( int mon_id, workarea *mon )
                     }
                     else if ( mon_id == -4 ) {
                         monitor_dimensions ( t->dst_x, t->dst_y, mon );
+                        printf("mon %d %d %d %d\n", mon->x, mon->y, mon->w, mon->h);
                         free ( r );
                         free ( t );
                         return TRUE;
