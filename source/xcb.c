@@ -528,11 +528,19 @@ static int monitor_active_from_id ( int mon_id, workarea *mon )
         xcb_get_property_cookie_t awc;
         awc = xcb_ewmh_get_active_window ( &xcb->ewmh, xcb->screen_nbr );
         if ( xcb_ewmh_get_active_window_reply ( &xcb->ewmh, awc, &active_window, NULL ) ) {
+            xcb_query_tree_cookie_t tree_cookie = xcb_query_tree ( xcb->connection, active_window );
+            xcb_query_tree_reply_t *tree_reply = xcb_query_tree_reply ( xcb->connection, tree_cookie, NULL );
+
+            if (!tree_reply) {
+                g_debug ( "Failed to get parent window, falling back to mouse location (-5)." );
+                goto fail;
+            }
+
             // get geometry.
             xcb_get_geometry_cookie_t c  = xcb_get_geometry ( xcb->connection, active_window );
             xcb_get_geometry_reply_t  *r = xcb_get_geometry_reply ( xcb->connection, c, NULL );
             if ( r ) {
-                xcb_translate_coordinates_cookie_t ct = xcb_translate_coordinates ( xcb->connection, active_window, root, r->x, r->y );
+                xcb_translate_coordinates_cookie_t ct = xcb_translate_coordinates ( xcb->connection, tree_reply->parent, root, r->x, r->y );
                 xcb_translate_coordinates_reply_t  *t = xcb_translate_coordinates_reply ( xcb->connection, ct, NULL );
                 if ( t ) {
                     if ( mon_id == -2 ) {
@@ -576,6 +584,7 @@ static int monitor_active_from_id ( int mon_id, workarea *mon )
         // This is our give up point.
         return FALSE;
     }
+fail:
     g_debug ( "Failed to find monitor, fall back to monitor showing mouse." );
     return monitor_active_from_id ( -5, mon );
 }
